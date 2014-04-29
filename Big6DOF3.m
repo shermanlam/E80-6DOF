@@ -178,9 +178,11 @@ ITensor = [LPitch, 0, 0;    %The tensor matrix. ooooh.
            0, LYaw, 0;
            0, 0, LRollZ];
 
+InverseTensor = inv(ITensor);  %Adding the inverse of the tensor.      
+       
 AngAccInertial =@(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw, TRoll, WPitch, WYaw, WRoll)...
-    SumTorquesBody(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial,TPitch, TYaw, WPitch, WYaw)+...
-    cross([WPitch; WYaw; WRoll], (ITensor*[TPitch; TYaw; TRoll]));
+    InverseTensor*(SumTorquesBody(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial,TPitch, TYaw, WPitch, WYaw)+...
+    cross([WPitch; WYaw; WRoll], (ITensor*[TPitch; TYaw; TRoll])));
 
 
 
