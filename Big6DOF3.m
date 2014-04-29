@@ -4,8 +4,8 @@
 clear all
 
 %~~~~~***CONTROLS***~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-TimeEnd = 2;               %End time of rocket flight in seconds
-numPtsPlot = 1000;          %Number of points used to plot the final trajectory
+TimeEnd = 10;               %End time of rocket flight in seconds
+numPtsPlot = 10*TimeEnd;          %Number of points used to plot the final trajectory
 
 
 %~~~~~~CONSTANTS & quantities~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -19,16 +19,17 @@ Lgyro = .5*mgyro*rgyro^2;
 m = 0.449 + mgyro;          %Mass of with motor
 L = 1.4;                    %Length of rocket~ FIRST ERROR
 diam = 0.0483;
-Area = diam*L;              %Planform Area of the rocket
+Area = 0.0073;              %Planform Area of the rocket
 CG = 0.746;                 %Dist. from tip to center of pressure
 CP = 0.942;                 %Dist. from tip to center of Gravity
 CptoCG = CP -CG;            %radius distance between centre of press and cg
 
 %~~~~~~Of the World (assuming constant)
+DensityAirElevFix = 1.1839;
 cc = 1.3;                   %Damping coefficient of rotation N/rad s
 g = 9.81;                   %Gravitational Constant
 uu = 1.814*10^(-5);         %Viscosity of Air N s/m^2 is constant
-wind = [2;30;2];             %Direction and speed of wind, m/s inertial frame
+wind = [1;0;0];             %Direction and speed of wind, m/s inertial frame
 
 
 %~~~~~INITIAL CONDITIONS~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -51,10 +52,10 @@ initialConds = [0;
                 0;
                 0;
                 0;
-                0.05;
-                0.1;
-                0.1;
-                0.01;
+                3.05;
+                1.1;
+                3.1;
+                0;
                 0;
                 0];
             
@@ -111,25 +112,37 @@ initialConds = [0;
 %drag force intermediate helper equations 
 Magnitude =@(x,y,z) sqrt(x^2 + z^2 + y^2);
 Reynolds =@(V_air,Z_inertial) (DensityAirElev(Z_inertial,0)*V_air*L)/uu;
-MagVelocitywithWindsquared =@(V_x_inertial, V_y_inertial, V_z_inertial)...
-                            (wind(1) - V_x_inertial)^2 + (wind(2) - V_y_inertial)^2 + (wind(3) - V_z_inertial)^2;
                         
 %AoA moved to separate function. Must include wind now.
 
 %these first two functions have the incident wind accounted for,
 %All the force equations in body frame:
+% FLiftBody =@(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw) ...
+%              0.5*CL(AoA(V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw, wind))...
+%              *DensityAirElev(Z_inertial,0)*Area*...
+%              MagVelocitywithWindsquared(V_x_inertial, V_y_inertial, V_z_inertial)...
+%              *LiftNormalizeDirection(V_x_inertial, V_y_inertial); 
+
 FLiftBody =@(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw) ...
              0.5*CL(AoA(V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw, wind))...
              *DensityAirElev(Z_inertial,0)*Area*...
-             MagVelocitywithWindsquared(V_x_inertial, V_y_inertial, V_z_inertial)...
-             *LiftNormalizeDirection(V_x_inertial, V_y_inertial); 
+             liftCombo(V_x_inertial, V_y_inertial, V_z_inertial, wind); 
                             
 
 FdBody =@(Z_inertial,V_x_inertial, V_y_inertial, V_z_inertial, TPitch) ...
         0.5*DensityAirElev(Z_inertial,0)*Area*...
-        MagVelocitywithWindsquared(V_x_inertial, V_y_inertial, V_z_inertial)*cos(TPitch)^2*...
-        Cd(Reynolds(sqrt(MagVelocitywithWindsquared(V_x_inertial,V_z_inertial, V_y_inertial)), Z_inertial))...
+        MagVelocityWithWindSquared(V_x_inertial, V_y_inertial, V_z_inertial,wind)*cos(TPitch)^2*...
+        Cd(Reynolds(sqrt(MagVelocityWithWindSquared(V_x_inertial,V_z_inertial, V_y_inertial, wind)), Z_inertial))...
         .*[0;0;-1];    %Drag
+
+% FdBody =@(Z_inertial,V_x_inertial, V_y_inertial, V_z_inertial, TPitch) ...
+%         0.5*DensityAirElevFix*Area*...
+%         MagVelocitywithWindsquared(V_x_inertial, V_y_inertial, V_z_inertial)*cos(TPitch)^2*...
+%         Cd(Reynolds(sqrt(MagVelocityWithWindsquared(V_x_inertial,V_z_inertial, V_y_inertial,wind)), Z_inertial))...
+%         .*[0;0;-1];    %Drag
+
+% FdBody =@(Z_inertial,V_x_inertial, V_y_inertial, V_z_inertial, TPitch) [0;0;0];
+% FLiftBody =@(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw) [0;0;0];
     
 FThrustBody =@(t) [0; 0; ThrustCurve(t)];
 
@@ -211,15 +224,21 @@ diffeq =@(t,r) [r(4);
                 indexat(LinAccInertial(r(3),r(4),r(5),r(6),r(7),r(8),r(10),r(11),r(12),t),1);
                 indexat(LinAccInertial(r(3),r(4),r(5),r(6),r(7),r(8),r(10),r(11),r(12),t),2);
                 indexat(LinAccInertial(r(3),r(4),r(5),r(6),r(7),r(8),r(10),r(11),r(12),t),3);
-                r(10);
-                r(11);
-                r(12);
-                indexat(AngAccInertial(r(3),r(4),r(5),r(6),r(7),r(8),r(9),r(10),r(11),r(12)),1);
-                indexat(AngAccInertial(r(3),r(4),r(5),r(6),r(7),r(8),r(9),r(10),r(11),r(12)),2);
-                indexat(AngAccInertial(r(3),r(4),r(5),r(6),r(7),r(8),r(9),r(10),r(11),r(12)),3)];
+                0;
+                0;
+                0;
+                0;
+                0;
+                0];
+%                 r(10);
+%                 r(11);
+%                 r(12);
+%                 indexat(AngAccInertial(r(3),r(4),r(5),r(6),r(7),r(8),r(9),r(10),r(11),r(12)),1);
+%                 indexat(AngAccInertial(r(3),r(4),r(5),r(6),r(7),r(8),r(9),r(10),r(11),r(12)),2);
+%                 indexat(AngAccInertial(r(3),r(4),r(5),r(6),r(7),r(8),r(9),r(10),r(11),r(12)),3)];
  
 %Using ODE45
-Solution= ode45(diffeq,[0,TimeEnd],initialConds);
+Solution= ode23(diffeq,[0,TimeEnd],initialConds);
 
 %PLOTTING
 figure(1)
