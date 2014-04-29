@@ -1,6 +1,6 @@
 %Developing a 6DOF model for our rocket, accounting for inertial forces on
 %the rocket, eventually accounting for gyroscoping forces.
-%Our rocket is the Arreaux by Aerotech
+%Our rocket is the Arreaux by Aerotech /test/
 clear all
 
 %~~~~~***CONTROLS***~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
