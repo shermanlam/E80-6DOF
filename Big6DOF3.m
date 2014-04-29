@@ -103,6 +103,8 @@ initialConds = [0;
     PitchDampSpline = spline(PitchRotRates, DampingPitchVal);
     PitchDamping =@(WPitch) ppval(PitchDampSpline, WPitch);
 
+    plott = linspace(0,6,100);
+    plot(plott, CL(plott))
     %kosher.
     
 %~~~~~~FORCES IN BODY FRAME~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
