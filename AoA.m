@@ -11,5 +11,5 @@ else
     Vair  = Vair/Vmag;
     output = abs(acos(dot(Runit, Vair)));
 end
-
+% This comment is pointless
 end
