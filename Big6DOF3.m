@@ -4,7 +4,7 @@
 clear all
 
 %~~~~~***CONTROLS***~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-TimeEnd = 5;               %End time of rocket flight in seconds
+TimeEnd = 20;               %End time of rocket flight in seconds
 numPtsPlot = 100*TimeEnd;          %Number of points used to plot the final trajectory
 
 
@@ -130,7 +130,7 @@ Reynolds =@(V_air,Z_inertial) (DensityAirElev(Z_inertial,0)*V_air*L)/uu;
 FLiftBody =@(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw)...
         0.5*CL(AoA(V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw, wind))...
         *DensityAirElev(Z_inertial,0)*Area*MagVelocityWithWindSquared(V_x_inertial, V_y_inertial,V_z_inertial,wind)...
-        .*LiftNormalizeDirection(V_x_inertial, V_y_inertial, V_z_inertial, wind);
+        .*LiftNormalizeDirection(V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw, wind);
                             
 
 FdBody =@(Z_inertial,V_x_inertial, V_y_inertial, V_z_inertial, TPitch) ...
@@ -200,10 +200,10 @@ ITensor = [LPitch, 0, 0;    %The tensor matrix. ooooh.
            0, LYaw, 0;
            0, 0, LRollZ];
 
-InverseTensor = inv(ITensor);  %Adding the inverse of the tensor.      
+%InverseTensor = inv(ITensor);  %Adding the inverse of the tensor.      
        
 AngAccInertial =@(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw, TRoll, WPitch, WYaw, WRoll)...
-    InverseTensor*(SumTorquesBody(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial,TPitch, TYaw, WPitch, WYaw)+...
+    ITensor\(SumTorquesBody(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial,TPitch, TYaw, WPitch, WYaw)+...
     cross([WPitch; WYaw; WRoll], (ITensor*[TPitch; TYaw; TRoll])));
 
 
@@ -227,9 +227,9 @@ indexat =  @(vector,indices) vector(indices);
 diffeq =@(t,r) [r(4);
                 r(5);
                 r(6);
-                indexat(LinAccInertial(r(3),r(4),r(5),r(6),r(7),r(8),r(10),r(11),r(12),t),1);
-                indexat(LinAccInertial(r(3),r(4),r(5),r(6),r(7),r(8),r(10),r(11),r(12),t),2);
-                indexat(LinAccInertial(r(3),r(4),r(5),r(6),r(7),r(8),r(10),r(11),r(12),t),3);
+                indexat(LinAccInertial(r(3),r(4),r(5),r(6),r(7),r(8), r(9), r(10),r(11),r(12),t),1);
+                indexat(LinAccInertial(r(3),r(4),r(5),r(6),r(7),r(8), r(9), r(10),r(11),r(12),t),2);
+                indexat(LinAccInertial(r(3),r(4),r(5),r(6),r(7),r(8), r(9), r(10),r(11),r(12),t),3);
                 r(10);
                 r(11);
                 r(12);

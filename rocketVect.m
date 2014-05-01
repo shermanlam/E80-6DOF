@@ -1,8 +1,7 @@
 %outputs rocket direction of pointing in unit vector form
-function output = rocketVect(TPitch, TYaw, TRoll)
-mag = sqrt(TPitch^2 + TYaw^2 + TRoll^2);
+function output = rocketVect(TPitch, TYaw)
 
-output = [TPitch;
-          TYaw;
-          TRoll]/mag;
+output = [cos(TYaw)*sin(TPitch);
+          sin(TYaw)*sin(TPitch);
+          cos(TPitch)];
 end
