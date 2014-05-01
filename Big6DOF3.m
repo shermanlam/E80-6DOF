@@ -4,14 +4,14 @@
 clear all
 
 %~~~~~***CONTROLS***~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-TimeEnd = 20;               %End time of rocket flight in seconds
+TimeEnd = 15;               %End time of rocket flight in seconds
 numPtsPlot = 100*TimeEnd;          %Number of points used to plot the final trajectory
 
 
 %~~~~~~CONSTANTS & quantities~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 %------Of Gyro
-Omega_gyro = 1;
-mgyro = .500;
+Omega_gyro = 43000;
+mgyro = .300;
 rgyro = .02286;
 Lgyro = .5*mgyro*rgyro^2;
 
@@ -29,7 +29,7 @@ DensityAirElevFix = 1.1839;
 cc = 1.3;                   %Damping coefficient of rotation N/rad s
 g = 9.81;                   %Gravitational Constant
 uu = 1.814*10^(-5);         %Viscosity of Air N s/m^2 is constant
-wind = [1;0;0];             %Direction and speed of wind, m/s inertial frame
+wind = [1;1;0];             %Direction and speed of wind, m/s inertial frame
 
 
 %~~~~~INITIAL CONDITIONS~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -49,7 +49,7 @@ wind = [1;0;0];             %Direction and speed of wind, m/s inertial frame
 initialConds = [0;
                 0;
                 3000;
-                0.1;
+                -5;
                 0;
                 0;
                 0;
@@ -110,7 +110,6 @@ initialConds = [0;
     
 %~~~~~~FORCES IN BODY FRAME~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 %drag force intermediate helper equations 
-Magnitude =@(x,y,z) sqrt(x^2 + z^2 + y^2);
 Reynolds =@(V_air,Z_inertial) (DensityAirElev(Z_inertial,0)*V_air*L)/uu;
                         
 %AoA moved to separate function. Must include wind now.
@@ -128,8 +127,8 @@ Reynolds =@(V_air,Z_inertial) (DensityAirElev(Z_inertial,0)*V_air*L)/uu;
 %              *DensityAirElev(Z_inertial,0)*Area*...
 %              liftCombo(V_x_inertial, V_y_inertial, V_z_inertial, wind); 
 FLiftBody =@(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw)...
-        0.5*CL(AoA(V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw, wind))...
-        *DensityAirElev(Z_inertial,0)*Area*MagVelocityWithWindSquared(V_x_inertial, V_y_inertial,V_z_inertial,wind)...
+        abs(0.5*CL(AoA(V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw, wind))...
+        *DensityAirElev(Z_inertial,0)*Area*MagVelocityWithWindSquared(V_x_inertial, V_y_inertial,V_z_inertial,wind))...
         .*LiftNormalizeDirection(V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw, wind);
                             
 
@@ -230,30 +229,31 @@ diffeq =@(t,r) [r(4);
                 indexat(LinAccInertial(r(3),r(4),r(5),r(6),r(7),r(8), r(9), r(10),r(11),r(12),t),1);
                 indexat(LinAccInertial(r(3),r(4),r(5),r(6),r(7),r(8), r(9), r(10),r(11),r(12),t),2);
                 indexat(LinAccInertial(r(3),r(4),r(5),r(6),r(7),r(8), r(9), r(10),r(11),r(12),t),3);
-                r(10);
-                r(11);
-                r(12);
-                indexat(AngAccInertial(r(3),r(4),r(5),r(6),r(7),r(8),r(9),r(10),r(11),r(12)),1);
-                indexat(AngAccInertial(r(3),r(4),r(5),r(6),r(7),r(8),r(9),r(10),r(11),r(12)),2);
-                indexat(AngAccInertial(r(3),r(4),r(5),r(6),r(7),r(8),r(9),r(10),r(11),r(12)),3)];
+                0;0;0;0;0;0];
+%                 r(10);
+%                 r(11);
+%                 r(12);
+%                 indexat(AngAccInertial(r(3),r(4),r(5),r(6),r(7),r(8),r(9),r(10),r(11),r(12)),1);
+%                 indexat(AngAccInertial(r(3),r(4),r(5),r(6),r(7),r(8),r(9),r(10),r(11),r(12)),2);
+%                 indexat(AngAccInertial(r(3),r(4),r(5),r(6),r(7),r(8),r(9),r(10),r(11),r(12)),3)];
  
 %Using ODE45
 %options = odeset('RelTol', .000001, 'AbsTol', .000001, 'Stats', 'on'); 
-%Solution= ode45(diffeq,[0,TimeEnd],initialConds);%, options);
-Solution= ode5(diffeq,linspace(0,TimeEnd,1000),initialConds);
+Solution= ode45(diffeq,[0,TimeEnd],initialConds);%, options);
+% Solution= ode5(diffeq,linspace(0,TimeEnd,5000),initialConds);
 
 %PLOTTING
 figure(1)
 clf
-plott = linspace(0,TimeEnd,1000);         % time points for plotting
+plott = linspace(0,TimeEnd,5000);         % time points for plotting
 
 %Making points for all dimensions in the inertial frame.
-% Xspace = deval(Solution, plott, 1);
-% Yspace = deval(Solution, plott, 2);
-% Zspace = deval(Solution, plott, 3);
-Xspace = Solution(:,1);
-Yspace = Solution(:,2);
-Zspace = Solution(:,3);
+Xspace = deval(Solution, plott, 1);
+Yspace = deval(Solution, plott, 2);
+Zspace = deval(Solution, plott, 3);
+% Xspace = Solution(:,1);
+% Yspace = Solution(:,2);
+% Zspace = Solution(:,3);
 
 %Ploting individual points, varying colour
  plot3(Xspace, Yspace, Zspace, 'Color', [1 0 0], 'Marker', 'o')
