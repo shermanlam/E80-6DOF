@@ -4,24 +4,24 @@
 clear all
 
 %~~~~~***CONTROLS***~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-TimeEnd = 15;               %End time of rocket flight in seconds
-numPtsPlot = 100*TimeEnd;          %Number of points used to plot the final trajectory
+TimeEnd = 9.8;               %End time of rocket flight in seconds
+numPlotPoints = 200*TimeEnd;          %Number of points used to plot the final trajectory
 
 
 %~~~~~~CONSTANTS & quantities~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 %------Of Gyro
-Omega_gyro = 43000;
+Omega_gyro = 43000/60*(2*pi); %Now in Rad/sec
 mgyro = .300;
-rgyro = .02286;
+rgyro = .017145;
 Lgyro = .5*mgyro*rgyro^2;
 
 %~~~~~~Of Rocket
-m = 0.449 + mgyro;          %Mass of with motor
+m = 1.422;          %Mass of with motor
 L = 1.4;                    %Length of rocket~ FIRST ERROR
 diam = 0.0483;
 Area = 0.0073;              %Planform Area of the rocket
-CG = 0.746;                 %Dist. from tip to center of pressure
-CP = 0.942;                 %Dist. from tip to center of Gravity
+CG = 0.796;                 %Dist. from tip to center of pressure
+CP = 1.14;                 %Dist. from tip to center of Gravity
 CptoCG = CP -CG;            %radius distance between centre of press and cg
 
 %~~~~~~Of the World (assuming constant)
@@ -31,6 +31,9 @@ g = 9.81;                   %Gravitational Constant
 uu = 1.814*10^(-5);         %Viscosity of Air N s/m^2 is constant
 wind = [1;1;0];             %Direction and speed of wind, m/s inertial frame
 
+LRollZ = 4.335*(10^(-4));     %These are the moments of inertia values from OpenRocket
+LPitch = 0.21;
+LYaw = 0.21;
 
 %~~~~~INITIAL CONDITIONS~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 % Where
@@ -48,8 +51,8 @@ wind = [1;1;0];             %Direction and speed of wind, m/s inertial frame
 % r(12) = thetadotz Wroll
 initialConds = [0;
                 0;
-                3000;
-                -5;
+                870;
+                0;
                 0;
                 0;
                 0;
@@ -58,6 +61,18 @@ initialConds = [0;
                 0;
                 0;
                 0];
+% initialConds = [-39.2215;
+%                 6.3393;
+%                 3502.8;
+%                 -.4049;
+%                 7.901;
+%                 -2.7122;
+%                 -.2344;
+%                 -.1856;
+%                 -1322.3;
+%                 -1.8367;
+%                 .5682;
+%                 59.4505];
             
 
 %~~~~~~IMPORTING FOR SPLINE CURVES~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -104,8 +119,8 @@ initialConds = [0;
     PitchDampSpline = spline(PitchRotRates, DampingPitchVal);
     PitchDamping =@(WPitch) ppval(PitchDampSpline, WPitch);
 
-    plott = linspace(0,6,100);
-    plot(plott, CL(plott))
+%     plott = linspace(0,6,100);
+%     plot(plott, CL(plott))
     %kosher.
     
 %~~~~~~FORCES IN BODY FRAME~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -156,13 +171,14 @@ SumForceBody =@(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TY
     
 %~~~~~NEWTONS EQNS OF MOTION INTO INERTIAL FRAME~~~~~~~~~~~~~~~~~~~~~~~~~~~
 LinAccInertial =@(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw, TRoll, WPitch, WYaw, WRoll, t) ...
-                  ((SumForceBody(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw, TRoll, t)...
+                  ((euler(TPitch, TYaw, TRoll)\SumForceBody(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw, TRoll, t)...
                     + m*cross([WPitch; WYaw; WRoll], [V_x_inertial; V_y_inertial; V_z_inertial]))...
                   +[0; 0; -m*g]+FLiftBody(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw))./m;
 
-% LinAccInertial =@(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw, WPitch, WYaw, WRoll, t) ...
-%                   (SumForceBody(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw, t)...
-%                   +[0; 0; -m*g])./m;  
+% LinAccInertial =@(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw, TRoll, WPitch, WYaw, WRoll, t) ...
+%                   (euler2(SumForceBody(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw, TRoll, t),TPitch, TYaw, TRoll)...
+%                     + m*cross([WPitch; WYaw; WRoll], [V_x_inertial; V_y_inertial; V_z_inertial])...
+%                   +[0; 0; -m*g]+FLiftBody(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw))./m;
     
 %~~~~~TORQUES IN THE BODY FRAME~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 %normalized equations to determine direction of torque from gyro precession 
@@ -171,44 +187,48 @@ LinAccInertial =@(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, 
 %dYaw
 
 %Now all the torque equations in the body frame
-TorqueGyro =@(WPitch, WYaw)...
-           (Omega_gyro * Lgyro).*[dPitch(WPitch, WYaw);dYaw(WPitch, WYaw);0];   %Do we have direction on this correct?
 
 TorqueLift = @(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw)...
-            CptoCG.*FLiftBody(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw);
+              cross(CptoCG.*rocketVect(TPitch, TYaw), FLiftBody(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw));
+            
+TorqueGyro =@(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw, WPitch, WYaw, t)...
+              -(t<=8)*Lgyro*Omega_gyro*[WPitch; WYaw; 0];%-TorqueLift(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw)...
+              %/norm(TorqueLift(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw));   %Do we have direction on this correct?
+
+TorqueGyroRoll = 0*Omega_gyro * Lgyro/LRollZ * [0;0;-1];
 
 TorqueDamping = @(WPitch)...
-                PitchDamping(WPitch)*WPitch.*[1;0;0];   %Torque Damping only happens in Pitch angle direction.
+               PitchDamping(WPitch)*WPitch.*[-1;0;0];   %Torque Damping only happens in Pitch angle direction.
 
 %Putting all the T  werks together.
-SumTorquesBody =@(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial,TPitch, TYaw, WPitch, WYaw)...
-                TorqueDamping(WPitch) + TorqueGyro(WPitch, WYaw)... 
-                - TorqueLift(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw);
+SumTorquesBody =@(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial,TPitch, TYaw, WPitch, WYaw, t)...
+                TorqueDamping(WPitch) + TorqueGyroRoll + TorqueGyro(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw, WPitch, WYaw, t);
                 %Gyro torque is added because it already accounts for
                 %opposing the direction of motion, and is thus already
                 %negative
 
-
               
 %~~~~~ANGULAR MOMENTUMS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-LRollZ = 2.9*(10^(-4));     %These are the moments of inertia values from OpenRocket
-LPitch = 0.12994;
-LYaw = 0.12994;
+
 
 ITensor = [LPitch, 0, 0;    %The tensor matrix. ooooh.
            0, LYaw, 0;
            0, 0, LRollZ];
 
 %InverseTensor = inv(ITensor);  %Adding the inverse of the tensor.      
-       
-AngAccInertial =@(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw, TRoll, WPitch, WYaw, WRoll)...
-    ITensor\(SumTorquesBody(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial,TPitch, TYaw, WPitch, WYaw)+...
-    cross([WPitch; WYaw; WRoll], (ITensor*[TPitch; TYaw; TRoll])));
 
+AngAccInertial =@(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw, TRoll, WPitch, WYaw, WRoll, t)...
+    ITensor\((euler(TPitch,TYaw,TRoll)\SumTorquesBody(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial,TPitch, TYaw, WPitch, WYaw, t))+...
+    cross([WPitch; WYaw; WRoll],ITensor*[WPitch; WYaw; WRoll])...
+    + TorqueLift(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw)) .* [1;1;0];
+% 
+% AngAccInertial =@(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw, TRoll, WPitch, WYaw, WRoll, t)...
+%     ITensor\((euler2(SumTorquesBody(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial,TPitch, TYaw, WPitch, WYaw, t), TPitch, TYaw, TRoll))+...
+%     cross([WPitch; WYaw; WRoll],ITensor*[WPitch; WYaw; WRoll])...
+%     + TorqueLift(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw)) .* [1;1;0];
 
 %~~~~~~INDEXAT~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 indexat =  @(vector,indices) vector(indices);
-
 
 %~~~~SOLVING IT WITH ODE45~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 % r(1) = x
@@ -229,23 +249,22 @@ diffeq =@(t,r) [r(4);
                 indexat(LinAccInertial(r(3),r(4),r(5),r(6),r(7),r(8), r(9), r(10),r(11),r(12),t),1);
                 indexat(LinAccInertial(r(3),r(4),r(5),r(6),r(7),r(8), r(9), r(10),r(11),r(12),t),2);
                 indexat(LinAccInertial(r(3),r(4),r(5),r(6),r(7),r(8), r(9), r(10),r(11),r(12),t),3);
-                0;0;0;0;0;0];
-%                 r(10);
-%                 r(11);
-%                 r(12);
-%                 indexat(AngAccInertial(r(3),r(4),r(5),r(6),r(7),r(8),r(9),r(10),r(11),r(12)),1);
-%                 indexat(AngAccInertial(r(3),r(4),r(5),r(6),r(7),r(8),r(9),r(10),r(11),r(12)),2);
-%                 indexat(AngAccInertial(r(3),r(4),r(5),r(6),r(7),r(8),r(9),r(10),r(11),r(12)),3)];
+                r(10);
+                r(11);
+                r(12);
+                indexat(AngAccInertial(r(3),r(4),r(5),r(6),r(7),r(8),r(9),r(10),r(11),r(12), t),1);
+                indexat(AngAccInertial(r(3),r(4),r(5),r(6),r(7),r(8),r(9),r(10),r(11),r(12), t),2);
+                indexat(AngAccInertial(r(3),r(4),r(5),r(6),r(7),r(8),r(9),r(10),r(11),r(12), t),3)];
  
 %Using ODE45
 %options = odeset('RelTol', .000001, 'AbsTol', .000001, 'Stats', 'on'); 
 Solution= ode45(diffeq,[0,TimeEnd],initialConds);%, options);
-% Solution= ode5(diffeq,linspace(0,TimeEnd,5000),initialConds);
+% Solution= ode5(diffeq,linspace(0,TimeEnd,numPlotPoints),initialConds);
 
 %PLOTTING
 figure(1)
 clf
-plott = linspace(0,TimeEnd,5000);         % time points for plotting
+plott = linspace(0,TimeEnd,numPlotPoints);         % time points for plotting
 
 %Making points for all dimensions in the inertial frame.
 Xspace = deval(Solution, plott, 1);
