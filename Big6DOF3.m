@@ -4,14 +4,14 @@
 clear all
 
 %~~~~~***CONTROLS***~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-TimeEnd = 10;               %End time of rocket flight in seconds
-numPlotPoints = 800*TimeEnd;          %Number of points used to plot the final trajectory
-
+TimeEnd = 15;               %End time of rocket flight in seconds
+numPlotPoints = 1000*TimeEnd;          %Number of points used to plot the final trajectory
+gyroon = 1;
 
 %~~~~~~CONSTANTS & quantities~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 %------Of Gyro
 Omega_gyro = 43000/60*(2*pi); %Now in Rad/sec
-mgyro = .300;
+mgyro = .180;
 rgyro = .017145;
 Lgyro = .5*mgyro*rgyro^2;
 
@@ -30,7 +30,7 @@ DensityAirElevFix = 1.1839;
 cc = 1.3;                   %Damping coefficient of rotation N/rad s
 g = 9.81;                   %Gravitational Constant
 uu = 1.814*10^(-5);         %Viscosity of Air N s/m^2 is constant
-wind = [1;1;0];             %Direction and speed of wind, m/s inertial frame
+wind = [8.5;0;0];             %Direction and speed of wind, m/s inertial frame
 
 LRollZ = 4.335*(10^(-4));     %These are the moments of inertia values from OpenRocket
 LPitch = 0.21;
@@ -144,7 +144,7 @@ Reynolds =@(V_air,Z_inertial) (DensityAirElev(Z_inertial,0)*V_air*L)/uu;
 %              liftCombo(V_x_inertial, V_y_inertial, V_z_inertial, wind); 
 FLiftBody =@(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw)...
         abs(0.5*CL(AoA(V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw, wind))...
-        *DensityAirElev(Z_inertial,0)*Area*cos(AoA(V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw, wind))*MagVelocityWithWindSquared(V_x_inertial, V_y_inertial,V_z_inertial,wind))...
+        *DensityAirElev(Z_inertial,0)*Area*sin(AoA(V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw, wind))*MagVelocityWithWindSquared(V_x_inertial, V_y_inertial,V_z_inertial,wind))...
         .*LiftNormalizeDirection(V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw, wind);
                             
 
@@ -189,11 +189,11 @@ LinAccInertial =@(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, 
 
 %Now all the torque equations in the body frame
 
-TorqueLift = @(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw)...
-              CptoCG*cos(abs(AoA(V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw, wind))) *cross(rocketVect(TPitch, TYaw), FLiftBody(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw));
+TorqueLift = @(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw, TRoll)...
+              [-1;1;1].*CptoCG.*euler2(FLiftBody(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw),TPitch,TYaw,TRoll);
             
 TorqueGyro =@(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw, WPitch, WYaw, t)...
-              -0*(t<=8)*Lgyro*Omega_gyro*[WPitch; WYaw; 0];%-TorqueLift(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw)...
+              -gyroon*(t<=8)*Lgyro*Omega_gyro*[WPitch; WYaw; 0];%-TorqueLift(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw)...
               %/norm(TorqueLift(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw));   %Do we have direction on this correct?
 
 TorqueGyroRoll = 0*Omega_gyro * Lgyro/LRollZ * [0;0;-1];
@@ -202,8 +202,9 @@ TorqueDamping = @(WPitch, WYaw)...
                [-PitchDamping(WPitch)*sign(WPitch);-PitchDamping(WYaw)*sign(WYaw);0];   %Torque Damping only happens in Pitch angle direction.
 
 %Putting all the T  werks together.
-SumTorquesBody =@(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial,TPitch, TYaw, WPitch, WYaw, t)...
-                TorqueDamping(WPitch, WYaw) + TorqueGyroRoll + TorqueGyro(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw, WPitch, WYaw, t);
+SumTorquesBody =@(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial,TPitch, TYaw, TRoll, WPitch, WYaw, t)...
+                TorqueDamping(WPitch, WYaw) ...
+                + TorqueGyro(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw, WPitch, WYaw, t);
                 %Gyro torque is added because it already accounts for
                 %opposing the direction of motion, and is thus already
                 %negative
@@ -219,9 +220,10 @@ ITensor = [LPitch, 0, 0;    %The tensor matrix. ooooh.
 %InverseTensor = inv(ITensor);  %Adding the inverse of the tensor.      
 
 AngAccInertial =@(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw, TRoll, WPitch, WYaw, WRoll, t)...
-    ((euler(-TPitch, -TYaw, -TRoll)\SumTorquesBody(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial,TPitch, TYaw, WPitch, WYaw, t)...
+    ((euler(TPitch,TYaw,TRoll)\SumTorquesBody(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial,TPitch, TYaw, TRoll, WPitch, WYaw, t) ...
     + cross([WPitch; WYaw; WRoll],[LPitch;LYaw;LRollZ].*[WPitch; WYaw; WRoll])...
-    + TorqueLift(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw)) ./ [LPitch;LYaw;LRollZ]).*[1;1;0];
+    + TorqueLift(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw, TRoll))...
+    ./ [LPitch;LYaw;LRollZ]).*[1;1;0];
 % 
 % AngAccInertial =@(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial, TPitch, TYaw, TRoll, WPitch, WYaw, WRoll, t)...
 %     ITensor\((euler2(SumTorquesBody(Z_inertial, V_x_inertial, V_y_inertial, V_z_inertial,TPitch, TYaw, WPitch, WYaw, t), TPitch, TYaw, TRoll))+...
@@ -244,36 +246,47 @@ indexat =  @(vector,indices) vector(indices);
 % r(10) = thetadotx WPitch
 % r(11) = thetadoty WYaw
 % r(12) = thetadotz Wroll
-diffeq =@(t,r) [r(4);
-                r(5);
-                r(6);
-                indexat(LinAccInertial(r(3),r(4),r(5),r(6),r(7),r(8), r(9), r(10),r(11),r(12),t),1);
-                indexat(LinAccInertial(r(3),r(4),r(5),r(6),r(7),r(8), r(9), r(10),r(11),r(12),t),2);
-                indexat(LinAccInertial(r(3),r(4),r(5),r(6),r(7),r(8), r(9), r(10),r(11),r(12),t),3);
-                r(10);
-                r(11);
-                r(12);
-                indexat(AngAccInertial(r(3),r(4),r(5),r(6),r(7),r(8),r(9),r(10),r(11),r(12), t),1);
-                indexat(AngAccInertial(r(3),r(4),r(5),r(6),r(7),r(8),r(9),r(10),r(11),r(12), t),2);
-                indexat(AngAccInertial(r(3),r(4),r(5),r(6),r(7),r(8),r(9),r(10),r(11),r(12), t),3)];
+diffeq =@(t,r) [real(r(4));
+                real(r(5));
+                real(r(6));
+                real(indexat(LinAccInertial(r(3),r(4),r(5),r(6),r(7),r(8), r(9), r(10),r(11),r(12),t),1));
+                real(indexat(LinAccInertial(r(3),r(4),r(5),r(6),r(7),r(8), r(9), r(10),r(11),r(12),t),2));
+                real(indexat(LinAccInertial(r(3),r(4),r(5),r(6),r(7),r(8), r(9), r(10),r(11),r(12),t),3));
+                real(r(10));
+                real(r(11));
+                real(r(12));
+                real(indexat(AngAccInertial(r(3),r(4),r(5),r(6),r(7),r(8),r(9),r(10),r(11),r(12), t),1));
+                real(indexat(AngAccInertial(r(3),r(4),r(5),r(6),r(7),r(8),r(9),r(10),r(11),r(12), t),2));
+                real(indexat(AngAccInertial(r(3),r(4),r(5),r(6),r(7),r(8),r(9),r(10),r(11),r(12), t),3))];
  
 %Using ODE45
 %options = odeset('RelTol', .000001, 'AbsTol', .000001, 'Stats', 'on'); 
-Solution= ode45(diffeq,[0,TimeEnd],initialConds);%, options);
-% Solution= ode5(diffeq,linspace(0,TimeEnd,numPlotPoints),initialConds);
-
+% Solution= ode45(diffeq,[0,TimeEnd],initialConds);%, options);
+Solution= ode5(diffeq,linspace(0,TimeEnd,numPlotPoints),initialConds);
+% gyroon = 1
+% % Solution2= ode45(diffeq,[0,TimeEnd],initialConds);
+% Solution2= ode5(diffeq,linspace(0,TimeEnd,numPlotPoints),initialConds);
 %PLOTTING
 figure(1)
 clf
 plott = linspace(0,TimeEnd,numPlotPoints);         % time points for plotting
 
 %Making points for all dimensions in the inertial frame.
-Xspace = deval(Solution, plott, 1);
-Yspace = deval(Solution, plott, 2);
-Zspace = deval(Solution, plott, 3);
-% Xspace = Solution(:,1);
-% Yspace = Solution(:,2);
-% Zspace = Solution(:,3);
+% Xspace = deval(Solution, plott, 1);
+% Yspace = deval(Solution, plott, 2);
+% Zspace = deval(Solution, plott, 3);
+% Xspace = deval(Solution2, plott, 1);
+% Yspace = deval(Solution2, plott, 2);
+% Zspace = deval(Solution2, plott, 3);
+Xspace = Solution(:,1);
+Yspace = Solution(:,2);
+Zspace = Solution(:,3);
+% Xspace2 = Solution2(:,1);
+% Yspace2 = Solution2(:,2);
+% Zspace2 = Solution2(:,3);
 
 %Ploting individual points, varying colour
- plot3(real(Xspace), real(Yspace), real(Zspace), 'Color', [1 0 0], 'Marker', 'o')
+figure(1)
+plot3(real(Xspace), real(Yspace), real(Zspace), 'Color', [1 0 0], 'Marker', 'o')
+% figure(2)
+% plot3(real(Xspace2), real(Yspace2), real(Zspace2), 'Color', [1 0 0], 'Marker', 'o')
